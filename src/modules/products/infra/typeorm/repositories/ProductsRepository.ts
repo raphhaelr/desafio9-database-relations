@@ -4,6 +4,7 @@ import IProductsRepository from '@modules/products/repositories/IProductsReposit
 import ICreateProductDTO from '@modules/products/dtos/ICreateProductDTO';
 import IUpdateProductsQuantityDTO from '@modules/products/dtos/IUpdateProductsQuantityDTO';
 import Product from '../entities/Product';
+import AppError from '@shared/errors/AppError';
 
 interface IFindProducts {
   id: string;
@@ -21,21 +22,64 @@ class ProductsRepository implements IProductsRepository {
     price,
     quantity,
   }: ICreateProductDTO): Promise<Product> {
-    // TODO
+    const product = await this.ormRepository.create({
+      name,
+      price,
+      quantity
+    })
+
+    await this.ormRepository.save(product)
+
+    return product
   }
 
   public async findByName(name: string): Promise<Product | undefined> {
-    // TODO
+    const product = await this.ormRepository.findOne({
+      where: {
+        name
+      }
+    })
+
+    return product
   }
 
   public async findAllById(products: IFindProducts[]): Promise<Product[]> {
-    // TODO
+    
+    const idProducts = products.map(product => product.id)
+    
+    const orderProducts = await this.ormRepository.find({ id: In(idProducts)})
+
+    if(idProducts.length !== orderProducts.length){
+      throw new AppError('Missing product')
+    }
+
+    return orderProducts
   }
 
   public async updateQuantity(
     products: IUpdateProductsQuantityDTO[],
   ): Promise<Product[]> {
-    // TODO
+    const productsData = await this.findAllById(products)
+
+    const newProducts = productsData.map(productData => {
+      const product = products.find(productFind => productFind.id === productData.id)
+
+      if(!product){
+        throw new AppError('Product not found.')
+      }
+
+      if(productData.quantity < product.quantity){
+        throw new AppError('Insuficient product quantity.')
+      }
+      
+      productData.quantity -= product.quantity
+
+      return productData
+    })
+
+    await this.ormRepository.save(newProducts)
+
+    return newProducts
   }
 }
 
